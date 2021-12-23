@@ -12,16 +12,31 @@ function App() {
 
   const [account, setAccount] = useState(null);
 
+  const setAccountListener = provider => {
+    console.log(account)
+    provider.on('accountsChanged', accounts => {
+      console.log(accounts)
+      if (accounts.length === 0) {
+        // MetaMask is locked or the user has not connected any accounts
+        setAccount(null);
+      } else if (accounts[0] !== account) {
+        setAccount(accounts[0])
+        // Do any other work!
+      }
+    })
+  }
 
   useEffect(() => {
     const loadProvider = async () => {
       const provider = await detectEthereumProvider();
-
+      
       if (provider) {
+        setAccountListener(provider);
         setWeb3Api({
           web3: new Web3(provider),
           provider
         })
+        console.log(provider)
         console.log('Ethereum successfully detected!')
         // From now on, this should always be true:
         // provider === window.ethereum
@@ -45,15 +60,14 @@ function App() {
       setAccount(accounts[0])
     }
 
-    web3Api.web3 && getAccount()
+    web3Api.web3 && getAccount();
   }, [web3Api.web3])
 
   async function loadAccount() {
     let button = document.querySelector("#Connect");
-    button.className = "button is-info is-loading mr-2"
-    const accounts = await web3Api.provider.request({ method: 'eth_requestAccounts' }).then(() => {
-      button.className = "button is-info mr-2"
-    });
+    button.className = "button is-small is-loading mr-2"
+    const accounts = await web3Api.provider.request({ method: 'eth_requestAccounts' });
+    setAccount(accounts[0])
   }
 
   return (
