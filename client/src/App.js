@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from "react";
+import React, {useCallback, useEffect, useState } from "react";
 import Web3 from "web3";
 import './App.css';
 import detectEthereumProvider from '@metamask/detect-provider';
+import {loadContract} from "./utils/loadContract";
+
 
 function App() {
 
   const [web3Api, setWeb3Api] = useState({
     provider: null,
-    web3: null
+    web3: null,
+    contract: null
   });
 
+  const [balance, setBalance] = useState(null);
   const [account, setAccount] = useState(null);
 
 
@@ -31,12 +35,15 @@ function App() {
   useEffect(() => {
     const loadProvider = async () => {
       const provider = await detectEthereumProvider();
-      
+      const contract = await loadContract("Faucet", provider);
+
+
       if (provider) {
         setAccountListener(provider);
         setWeb3Api({
           web3: new Web3(provider),
-          provider
+          provider,
+          contract
         })
         console.log(provider)
         console.log('Ethereum successfully detected!')
@@ -57,6 +64,17 @@ function App() {
   }, [])
 
   useEffect(() => {
+    const loadBalance = async () => {
+      const { contract, web3 } = web3Api;
+      const balance = await web3.eth.getBalance(contract.address);
+      setBalance(web3.utils.fromWei(balance, 'ether'));
+    }
+
+
+    web3Api.contract && loadBalance();
+  }, [web3Api])
+
+  useEffect(() => {
     const getAccount = async () => {
       const accounts = await web3Api.web3.eth.getAccounts()
       setAccount(accounts[0])
@@ -71,6 +89,14 @@ function App() {
     const accounts = await web3Api.provider.request({ method: 'eth_requestAccounts' });
     setAccount(accounts[0])
   }
+
+  const addFunds = useCallback(async () => {
+    const { contract, web3 } = web3Api
+    await contract.addFunds({
+      from: account,
+      value: web3.utils.toWei("1", "ether")
+    })
+  }, [web3Api, account])
 
   return (
     <div className="faucet-wrapper ">
@@ -90,10 +116,10 @@ function App() {
           </h1>
         </div>
         <div className="balance-view is-size-2 my-4">
-          Current Balance: <strong>10</strong> ETH
+          Current Balance: <strong>{balance}</strong> ETH
         </div>
 
-        <button className="button is-link mr-2">Donate</button>
+        <button className="button is-link mr-2" onClick={addFunds}>Donate 1 eth</button>
         <button className="button is-primary">Withdraw</button>
       </div>
     </div>
