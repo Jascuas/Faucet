@@ -12,14 +12,16 @@ function App() {
 
   const [account, setAccount] = useState(null);
 
+
   const setAccountListener = provider => {
-    console.log(account)
+
     provider.on('accountsChanged', accounts => {
-      console.log(accounts)
+
       if (accounts.length === 0) {
         // MetaMask is locked or the user has not connected any accounts
         setAccount(null);
-      } else if (accounts[0] !== account) {
+      } else  {
+        // MetaMask is change user accounts
         setAccount(accounts[0])
         // Do any other work!
       }
