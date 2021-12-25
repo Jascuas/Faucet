@@ -1,14 +1,15 @@
-import React, {useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Web3 from "web3";
 import './App.css';
 import detectEthereumProvider from '@metamask/detect-provider';
-import {loadContract} from "./utils/loadContract";
+import { loadContract } from "./utils/loadContract";
 
 
 function App() {
 
   const [web3Api, setWeb3Api] = useState({
     provider: null,
+    isProviderLoaded: false,
     web3: null,
     contract: null
   });
@@ -16,6 +17,7 @@ function App() {
   const [balance, setBalance] = useState(null);
   const [account, setAccount] = useState(null);
 
+  const canConnectToContract = account && web3Api.contract;
 
   const setAccountListener = provider => {
 
@@ -24,35 +26,38 @@ function App() {
       if (accounts.length === 0) {
         // MetaMask is locked or the user has not connected any accounts
         setAccount(null);
-      } else  {
+      } else {
         // MetaMask is change user accounts
         setAccount(accounts[0])
         // Do any other work!
       }
     })
+
+    provider.on('chainChanged', _ => window.location.reload());
+    
   }
 
   useEffect(() => {
     const loadProvider = async () => {
       const provider = await detectEthereumProvider();
-      const contract = await loadContract("Faucet", provider);
-
 
       if (provider) {
         setAccountListener(provider);
+        const contract = await loadContract("Faucet", provider);
         setWeb3Api({
           web3: new Web3(provider),
           provider,
-          contract
+          contract,
+          isProviderLoaded: true
         })
-        console.log(provider)
+
         console.log('Ethereum successfully detected!')
         // From now on, this should always be true:
         // provider === window.ethereum
 
         // Access the decentralized web!
       } else {
-
+        setWeb3Api((api) => ({ ...api, isProviderLoaded: true }))
         // if the provider is not detected, detectEthereumProvider resolves to null
         console.error('Please install MetaMask!')
       }
@@ -69,8 +74,6 @@ function App() {
       const balance = await web3.eth.getBalance(contract.address);
       setBalance(web3.utils.fromWei(balance, 'ether'));
     }
-
-
     web3Api.contract && loadBalance();
   }, [web3Api])
 
@@ -95,32 +98,59 @@ function App() {
     await contract.addFunds({
       from: account,
       value: web3.utils.toWei("1", "ether")
+    }).then(async () => {
+      const balance = await web3.eth.getBalance(contract.address);
+      console.log(balance);
+      setBalance(web3.utils.fromWei(balance, 'ether'));
     })
   }, [web3Api, account])
+
+  const withdraw = async () => {
+    const { contract, web3 } = web3Api;
+    const withdrawAmount = web3.utils.toWei("0.1", "ether");
+    await contract.withdraw(withdrawAmount, {
+      from: account
+    }).then(async () => {
+      const balance = await web3.eth.getBalance(contract.address);
+      console.log(balance);
+      setBalance(web3.utils.fromWei(balance, 'ether'));
+    })
+  }
 
   return (
     <div className="faucet-wrapper ">
       <div className="faucet">
-        <div className="is-flex is-aling-items-center">
-          <span className="mr-2">
-            <strong>Account: </strong>
-          </span>
-          <h1>
+        {web3Api.isProviderLoaded ?
+          <div className="is-flex aling-items-center" >
+            <span className="mr-2">
+              <strong >Account: </strong>
+            </span>
             {account ?
-              account :
-              <button
-                id="Connect"
-                className="button is-small mr-2"
-                onClick={loadAccount}
-              >Connect Wallet</button>}
-          </h1>
-        </div>
+              <div>{account} </div> :
+              !web3Api.provider ?
+                <>
+                  <div className="notification is-warning is-size-6 is-rounded">
+                    Wallet is not detected!
+                    <a target="_blank" rel="noopener noreferrer" href="https://docs.metamask.io">Install Metamask</a>
+                  </div>
+                </> :
+                <button
+                  id="Connect"
+                  className="button is-small mr-2"
+                  onClick={loadAccount}
+                >Connect Wallet</button>}
+          </div>
+          :
+          <span>Looking for web3...</span>
+        }
         <div className="balance-view is-size-2 my-4">
           Current Balance: <strong>{balance}</strong> ETH
         </div>
-
-        <button className="button is-link mr-2" onClick={addFunds}>Donate 1 eth</button>
-        <button className="button is-primary">Withdraw</button>
+        {!canConnectToContract &&
+          <i className="is-block">Connect to Ganache</i>
+        }
+        <button disabled={!canConnectToContract} className="button is-link mr-2" onClick={addFunds}>Donate 1 eth</button>
+        <button disabled={!canConnectToContract} className="button is-primary" onClick={withdraw}>Withdraw 0.1 eth</button>
       </div>
     </div>
   );
